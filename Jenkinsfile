@@ -7,42 +7,40 @@ pipeline {
     }
 
     environment {
-        SONAR_HOME = tool 'sonar-scanner'
+        SONAR_TOKEN = 'sqa_b9627b9fb56f407f453f0f5ea8cf866040c0e423'
+        SONAR_SCANNER_HOME = tool 'sonar-scanner'
     }
 
     stages {
-        stage('Git checkout') {
+        stage('Git Checkout') {
             steps {
-                git 'https://github.com/gashok13193/CICD-ekart.git'
+                git 'https://github.com/ameerkaiff/CICD-ekart.git'
             }
         }
 
         stage('Code Compile') {
             steps {
-                sh "mvn clean compile"
-            }
-        }
-
-        stage('Unit Testing') {
-            steps {
-                sh "mvn test -Dmaven.test.skip=true"
+                sh 'mvn clean compile'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh ''' 
-                    $SONAR_HOME/bin/sonar-scanner \
-                    -Dsonar.projectKey=demo \
-                    -Dsonar.projectName=demo \
-                    -Dsonar.java.binaries=target/classes
+                withSonarQubeEnv('sonarQube') {
+                    sh '''
+                        ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectKey=demo \
+                        -Dsonar.projectName=demo \
+                        -Dsonar.java.binaries=target/classes \
+                        -Dsonar.host.url=http://54.172.76.119:9000 \
+                        -Dsonar.token=$SONAR_TOKEN \
+                        -X
                     '''
                 }
             }
         }
 
-        stage('OWASP Dependency') {
+        stage('OWASP Dependency Check') {
             steps {
                 dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dependency-check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
@@ -51,36 +49,14 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh "mvn package -Dmaven.test.skip=true"
+                sh 'mvn package -Dmaven.test.skip=true'
             }
         }
 
         stage('Deploy to Nexus') {
             steps {
                 withMaven(globalMavenSettingsConfig: 'global', jdk: 'jdk17', maven: 'maven3', mavenSettingsConfig: '', traceability: true) {
-                    sh "mvn deploy -Dmaven.test.skip=true"
-                }
-            }
-        }
-
-        stage('Docker Build and Tag') {
-            steps {
-                withDockerRegistry(credentialsId: 'fcaaed4a-5678-4547-b3dc-06eb5605ef83', url: 'https://index.docker.io/v1/') {
-                    sh "docker build -t gashok13193/cicd-ekart:latest -f docker/Dockerfile ."
-                }
-            }
-        }
-
-        stage('Trivy Scan') {
-            steps {
-                sh "trivy image gashok13193/cicd-ekart:latest > trivy-report.txt"
-            }
-        }
-
-        stage('Docker Push') {
-            steps {
-                withDockerRegistry(credentialsId: 'fcaaed4a-5678-4547-b3dc-06eb5605ef83', url: 'https://index.docker.io/v1/') {
-                    sh "docker push gashok13193/cicd-ekart:latest"
+                    sh 'mvn deploy -Dmaven.test.skip=true'
                 }
             }
         }
